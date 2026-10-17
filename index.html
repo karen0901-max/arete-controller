@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>홈화면 - Music & Light 컨트롤러</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin:0; padding:0; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: #7a7a7a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    overscroll-behavior: none;
+  }
+
+  .page-title {
+    align-self: flex-start;
+    margin-left: calc(50vw - 480px);
+    color: #eee;
+    font-size: 15px;
+    letter-spacing: .5px;
+  }
+  @media (max-width: 1000px) {
+    .page-title { margin-left: 24px; }
+  }
+
+  /* ---- IP 설정 (기능 그대로, 패널 위쪽 작은 바) ---- */
+  #ip-config {
+    display:flex; gap:8px; width: 960px; max-width: 92vw;
+  }
+  #ip-config input {
+    flex:1; padding:8px 10px; border-radius:8px; border:none; font-size:13px;
+  }
+  #ip-config button {
+    padding:8px 12px; border-radius:8px; border:none; background:#2b2b2b; color:#fff; font-size:12px;
+  }
+  .ble-btn {
+    padding:8px 14px; border-radius:8px; border:none; background:#2b6cb0; color:#fff; font-size:12px; white-space:nowrap;
+  }
+  .ble-btn.connected { background:#1a7a4c; }
+
+  .panel {
+    width: 960px;
+    max-width: 92vw;
+    padding: 40px 60px;
+    border-radius: 18px;
+    background: radial-gradient(ellipse at 40% 15%, #c4c4c4 0%, #a8a8a8 40%, #8f8f8f 100%);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  /* ---- Music / Light 모드 선택 (좌측, 세로 배치) ---- */
+  .mode-col { display:flex; flex-direction:column; gap:24px; }
+  .mode-btn {
+    width: 108px; height: 108px; border-radius:16px;
+    border: 1.5px solid rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.03);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px; color: rgba(255,255,255,0.35);
+    transition: all .2s ease;
+  }
+  .mode-btn svg { opacity:.5; transition:opacity .2s; }
+  .mode-btn span { font-size: 13px; letter-spacing:.5px; }
+  .mode-btn.active {
+    border-color:#fff; color:#fff;
+    background: rgba(255,255,255,0.08);
+  }
+  .mode-btn.active svg { opacity:1; }
+
+  /* ---- 다이얼 (중앙) ---- */
+  .dial-col { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .dial-wrap {
+    position: relative;
+    width: 240px; height: 240px;
+    touch-action: none; user-select:none;
+  }
+  .ticks { position:absolute; inset:0; pointer-events:none; }
+  .tick { position:absolute; inset:0; }
+  .tick .dash {
+    position:absolute; top:0; left:50%; width:3px; height:13px; margin-left:-1.5px;
+    border-radius:2px; background:#707070;
+    transition: background .12s ease;
+  }
+  .tick.filled .dash { background:#ffffff; }
+
+  .minmax-row {
+    width: 200px; display:flex; justify-content:space-between;
+    color:#666; font-size:13px; margin-top:2px;
+  }
+
+  .knob {
+    position:absolute; left:16%; top:16%; width:68%; height:68%; border-radius:50%;
+    background: radial-gradient(circle at 32% 28%, #ffffff 0%, #f4f4f4 35%, #e5e5e5 70%, #d6d6d6 100%);
+    box-shadow: inset 0 3px 6px rgba(255,255,255,.9), inset 0 -10px 16px rgba(0,0,0,.08), 0 12px 22px rgba(0,0,0,.3);
+    transform: rotate(-135deg);
+    transition: transform .2s cubic-bezier(.34,1.56,.64,1);
+  }
+  .knob .indicator {
+    position:absolute; width:5px; height:30%; border-radius:3px;
+    background:#ffffff; top:14%; left:calc(50% - 2.5px);
+    transform-origin: 50% 130%;
+    transform: rotate(-25deg);
+    box-shadow: 0 0 3px rgba(0,0,0,0.15);
+  }
+
+  .value-label { color:#333; font-size:14px; text-align:center; }
+  .value-label b { font-size:19px; }
+
+  /* ---- 재생 컨트롤 (우측) ---- */
+  .controls-col { display:flex; flex-direction:column; align-items:center; gap:22px; }
+  .play-btn {
+    width: 88px; height: 88px; border-radius:999px; border:none; cursor:pointer;
+    background: radial-gradient(circle at 35% 28%, #4a4a4a, #0c0c0c);
+    color:#eee; font-size:15px; letter-spacing:1px;
+    box-shadow: 0 6px 14px rgba(0,0,0,.5), inset 0 1px 2px rgba(255,255,255,.2), 0 0 0 6px rgba(255,255,255,0.15);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .skip-row {
+    display:flex;
+    background: radial-gradient(circle at 35% 28%, #4a4a4a, #0c0c0c);
+    border-radius: 999px;
+    box-shadow: 0 6px 14px rgba(0,0,0,.5), inset 0 1px 2px rgba(255,255,255,.15);
+    overflow: hidden;
+  }
+  .skip-btn {
+    width:66px; height:48px; font-size:15px; border:none; background:transparent; color:#eee; cursor:pointer;
+  }
+  .skip-row .skip-btn:first-child { border-right: 1px solid rgba(255,255,255,0.12); }
+
+  #trackName { color:#333; font-size:13px; text-align:center; }
+  #status { color:#eee; font-size:11px; text-align:center; min-height:14px; }
+
+  /* Light 모드일 땐 트랙 관련 UI를 안 보이게만 하고, 레이아웃 공간은 그대로 유지 */
+  .music-only { transition: opacity .15s ease; }
+  .music-only.hidden {
+    visibility: hidden;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+  <div class="page-title">홈화면</div>
+
+  <div id="ip-config">
+    <input id="ipInput" type="text" placeholder="ESP32 IP (예: 192.168.0.15)">
+    <button onclick="saveIp()">Wi-Fi 연결</button>
+    <button id="bleBtnStand" class="ble-btn" onclick="connectBleStand()">ARETE2 BLE 연결 (스탠드)</button>
+    <button id="bleBtnSpeaker" class="ble-btn" onclick="connectBleSpeaker()">ARETE5 BLE 연결 (스피커)</button>
+  </div>
+
+<div class="panel">
+
+  <div class="mode-col">
+    <button class="mode-btn active" id="btnMusic" onclick="setMode('music')">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3 L4 20 L20 20 Z"/></svg>
+      <span>Music</span>
+    </button>
+    <button class="mode-btn" id="btnLight" onclick="setMode('light')">
+      <svg width="22" height="30" viewBox="0 0 24 30" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2 L18 26 L12 30 L6 26 Z"/></svg>
+      <span>Light</span>
+    </button>
+  </div>
+
+  <div class="dial-col">
+    <div class="dial-wrap" id="dial">
+      <div class="ticks" id="ticks"></div>
+      <div class="knob" id="knob"><span class="indicator"></span></div>
+    </div>
+    <div class="minmax-row"><span>min</span><span>max</span></div>
+    <div class="value-label" id="valueLabel">음량 <b id="valueText">0</b></div>
+    <div id="trackName" class="music-only">🎵 Track 1</div>
+  </div>
+
+  <div class="controls-col" id="controlsRow">
+    <button class="play-btn" id="playBtn" onclick="togglePlay()">P</button>
+    <div class="skip-row">
+      <button class="skip-btn" onclick="prevTrack()">B</button>
+      <button class="skip-btn" onclick="nextTrack()">F</button>
+    </div>
+  </div>
+
+</div>
+
+  <div id="status"></div>
+  <audio id="audioEl"></audio>
+
+<script>
+  // ========== 공통: ESP32 연결 설정 (Wi-Fi HTTP) ==========
+  let ESP32_IP = localStorage.getItem("esp32_ip") || "";
+  document.getElementById("ipInput").value = ESP32_IP;
+
+  function saveIp() {
+    ESP32_IP = document.getElementById("ipInput").value.trim();
+    localStorage.setItem("esp32_ip", ESP32_IP);
+    setStatus("저장됨: " + ESP32_IP);
+  }
+  function setStatus(msg) {
+    document.getElementById("status").textContent = msg;
+  }
+
+  // ========== 공통: BLE 연결 (ARETE2 스탠드 / ARETE5 스피커) ==========
+  const BLE_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+  const BLE_CHAR_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // write (ASCII '0'~'9')
+  const BLE_CHAR_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // notify
+
+  const bleTargets = {
+    stand:   { namePrefix: "ARETE2", buttonId: "bleBtnStand",   label: "ARETE2",  device: null, rxChar: null },
+    speaker: { namePrefix: "ARETE5", buttonId: "bleBtnSpeaker", label: "ARETE5",  device: null, rxChar: null }
+  };
+
+  async function connectBleTarget(key) {
+    const target = bleTargets[key];
+    const btn = document.getElementById(target.buttonId);
+
+    if (!navigator.bluetooth) {
+      setStatus("이 브라우저는 Web Bluetooth를 지원하지 않습니다 (Chrome/Edge 데스크톱 권장)");
+      return;
+    }
+    try {
+      setStatus(`${target.label} 기기 선택 중... (목록에서 직접 골라주세요)`);
+
+      // 이름 필터 없이 주변 모든 BLE 기기를 보여줌
+      // (실제 기기가 아직 "ARETE5" 등의 이름으로 광고 중이 아니어도 목록에서 선택 가능)
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [BLE_SERVICE_UUID]
+      });
+
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService(BLE_SERVICE_UUID);
+      const rxChar = await service.getCharacteristic(BLE_CHAR_RX_UUID);
+
+      target.device = device;
+      target.rxChar = rxChar;
+
+      btn.textContent = `${target.label} 연결됨`;
+      btn.classList.add("connected");
+      setStatus(`BLE 연결 완료: ${device.name || target.label}`);
+
+      device.addEventListener("gattserverdisconnected", () => {
+        target.device = null;
+        target.rxChar = null;
+        btn.textContent = `${target.label} BLE 연결`;
+        btn.classList.remove("connected");
+        setStatus(`${target.label} BLE 연결 끊김`);
+      });
+    } catch (err) {
+      if (err.name === "NotFoundError") {
+        setStatus(`${target.label} 기기 선택이 취소되었거나, 선택한 기기에 필요한 BLE 서비스가 없습니다`);
+      } else {
+        setStatus(`${target.label} BLE 연결 실패: ` + err.message);
+      }
+    }
+  }
+
+  function connectBleStand() { connectBleTarget("stand"); }
+  function connectBleSpeaker() { connectBleTarget("speaker"); }
+
+  async function sendBleByteTo(key, byteValue) {
+    const target = bleTargets[key];
+    if (!target.rxChar) return false;
+    try {
+      await target.rxChar.writeValue(new Uint8Array([byteValue]));
+      return true;
+    } catch (err) {
+      setStatus(`${target.label} BLE 전송 실패: ` + err.message);
+      return false;
+    }
+  }
+
+  async function sendBleLevelTo(key, level) {
+    return sendBleByteTo(key, "0".charCodeAt(0) + level); // '0' ~ '9'
+  }
+
+  async function sendBleCharTo(key, char) {
+    return sendBleByteTo(key, char.charCodeAt(0)); // 예: 'P', 'B', 'F'
+  }
+
+  // ========== 모드 전환 (Music / Light) ==========
+  let mode = "music"; // "music" | "light"
+
+  function setMode(m) {
+    mode = m;
+    document.getElementById("btnMusic").classList.toggle("active", m === "music");
+    document.getElementById("btnLight").classList.toggle("active", m === "light");
+    document.getElementById("valueLabel").innerHTML =
+      m === "music" ? '음량 <b id="valueText">' + Math.round(currentVolume * 100) + '</b>'
+                    : '레벨 <b id="valueText">' + currentLightLevel + '</b> / 9';
+    // 다이얼 위치도 현재 모드 값에 맞게 갱신
+    if (m === "music") {
+      applyKnobAngle(volumeToAngle(currentVolume));
+    } else {
+      applyKnobAngle(levelToAngle(currentLightLevel));
+    }
+
+    // 트랙 표시(트랙명)만 Light 모드에서 숨김. 재생 컨트롤(P/B/F)은 모드와 무관하게 항상 사용 가능
+    document.querySelectorAll(".music-only").forEach(el => {
+      el.classList.toggle("hidden", m === "light");
+    });
+
+    // Light 모드로 전환 시 재생 중이던 음악은 정지
+    if (m === "light" && !audioEl.paused) {
+      audioEl.pause();
+      isPlaying = false;
+      playBtn.textContent = "P";
+    }
+  }
+
+  // ========== 다이얼(노브) 공통 로직 ==========
+  const dial = document.getElementById("dial");
+  const knob = document.getElementById("knob");
+
+  // Music 모드: 연속 회전 (-135deg ~ 135deg → 음량 0~100)
+  const MIN_ANGLE = -135, MAX_ANGLE = 135;
+  let currentVolume = 0.5; // 0~1
+  let currentSpeakerLevel = 5; // 0~9, ARETE5 스피커로 전송되는 값
+
+  function volumeToAngle(v) { return MIN_ANGLE + v * (MAX_ANGLE - MIN_ANGLE); }
+  function angleToVolume(a) {
+    a = Math.max(MIN_ANGLE, Math.min(MAX_ANGLE, a));
+    return (a - MIN_ANGLE) / (MAX_ANGLE - MIN_ANGLE);
+  }
+
+  // Light 모드: 0~9 (10단계) 스냅
+  const LIGHT_LEVEL_COUNT = 10;
+  let currentLightLevel = 0; // 0~9
+
+  function levelToAngle(level) { return MIN_ANGLE + (level / (LIGHT_LEVEL_COUNT - 1)) * (MAX_ANGLE - MIN_ANGLE); }
+  function angleToLevel(a) {
+    a = Math.max(MIN_ANGLE, Math.min(MAX_ANGLE, a));
+    const ratio = (a - MIN_ANGLE) / (MAX_ANGLE - MIN_ANGLE);
+    return Math.round(ratio * (LIGHT_LEVEL_COUNT - 1));
+  }
+
+  // ---- 다이얼 주변 눈금(틱) - 값이 커질수록 흰색으로 채워짐 ----
+  const TICK_COUNT = 44;
+  const ticksContainer = document.getElementById("ticks");
+  let tickEls = [];
+
+  function renderTicks() {
+    ticksContainer.innerHTML = "";
+    tickEls = [];
+    for (let i = 0; i < TICK_COUNT; i++) {
+      const angle = MIN_ANGLE + (i * (MAX_ANGLE - MIN_ANGLE)) / (TICK_COUNT - 1);
+      const wrap = document.createElement("div");
+      wrap.className = "tick";
+      wrap.style.transform = `rotate(${angle}deg)`;
+      const dash = document.createElement("div");
+      dash.className = "dash";
+      wrap.appendChild(dash);
+      ticksContainer.appendChild(wrap);
+      tickEls.push({ angle, el: wrap });
+    }
+  }
+
+  function updateTicksByAngle(deg) {
+    tickEls.forEach(t => t.el.classList.toggle("filled", t.angle <= deg));
+  }
+
+  function applyKnobAngle(deg, animate = true) {
+    knob.style.transition = animate ? "transform .2s cubic-bezier(.34,1.56,.64,1)" : "none";
+    knob.style.transform = `rotate(${deg}deg)`;
+    updateTicksByAngle(deg);
+  }
+
+  function getAngle(x, y) {
+    const rect = dial.getBoundingClientRect();
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    return Math.atan2(y - cy, x - cx) * 180 / Math.PI;
+  }
+
+  let dragging = false, startAngle = 0, baseAngle = 0;
+
+  function onStart(x, y) {
+    dragging = true;
+    startAngle = getAngle(x, y);
+    baseAngle = mode === "music" ? volumeToAngle(currentVolume) : levelToAngle(currentLightLevel);
+    knob.style.transition = "none";
+  }
+
+  function onMove(x, y) {
+    if (!dragging) return;
+    const diff = getAngle(x, y) - startAngle;
+    let angle = baseAngle + diff;
+    angle = Math.max(MIN_ANGLE, Math.min(MAX_ANGLE, angle));
+
+    knob.style.transform = `rotate(${angle}deg)`;
+    updateTicksByAngle(angle);
+
+    if (mode === "music") {
+      const v = angleToVolume(angle);
+      currentVolume = v;
+      document.getElementById("audioEl").volume = v;
+      document.getElementById("valueText").textContent = Math.round(v * 100);
+
+      const speakerLevel = Math.round(v * (LIGHT_LEVEL_COUNT - 1)); // 0~9
+      if (speakerLevel !== currentSpeakerLevel) {
+        currentSpeakerLevel = speakerLevel;
+        sendSpeakerLevel(speakerLevel);
+      }
+    } else {
+      const lvl = angleToLevel(angle);
+      if (lvl !== currentLightLevel) {
+        currentLightLevel = lvl;
+        document.getElementById("valueText").textContent = lvl;
+        sendStandLevel(lvl);
+      }
+    }
+  }
+
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+
+    if (mode === "music") {
+      // 음량은 연속값이라 스냅 없이 그대로 확정, ESP32로는 보내지 않음 (필요하면 sendVolume 추가 가능)
+      return;
+    }
+
+    // Light 모드: 다이얼을 놓으면 현재 스냅된 레벨 위치로 노브를 정렬
+    applyKnobAngle(levelToAngle(currentLightLevel));
+  }
+
+  dial.addEventListener("mousedown", e => onStart(e.clientX, e.clientY));
+  window.addEventListener("mousemove", e => onMove(e.clientX, e.clientY));
+  window.addEventListener("mouseup", onEnd);
+
+  // 터치 시작: 다이얼 위에서 시작된 터치만 드래그로 처리
+  dial.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    onStart(t.clientX, t.clientY);
+  }, { passive: true });
+
+  // 드래그 중엔 화면 스크롤을 막고(preventDefault) 다이얼만 반응하도록 처리
+  window.addEventListener("touchmove", e => {
+    if (!dragging) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY);
+  }, { passive: false });
+
+  window.addEventListener("touchend", onEnd);
+  window.addEventListener("touchcancel", onEnd);
+
+  async function sendStandLevel(level) {
+    const sentByBle = await sendBleLevelTo("stand", level);
+    if (sentByBle) {
+      setStatus("ARETE2(스탠드) BLE 레벨 전송: " + level);
+      return;
+    }
+
+    if (!ESP32_IP) { setStatus("BLE 미연결 - ESP32 IP를 입력하고 Wi-Fi로 연결하거나 ARETE2 BLE 연결을 눌러주세요"); return; }
+    fetch(`http://${ESP32_IP}/set?level=${level}`)
+      .then(() => setStatus("Wi-Fi 레벨 전송 완료: " + level))
+      .catch(() => setStatus("연결 실패 (같은 Wi-Fi인지 확인)"));
+  }
+
+  async function sendSpeakerLevel(level) {
+    const sentByBle = await sendBleLevelTo("speaker", level);
+    if (sentByBle) {
+      setStatus("ARETE5(스피커) BLE 레벨 전송: " + level);
+      return;
+    }
+    setStatus("ARETE5 BLE 미연결 - 스피커와 먼저 페어링해주세요");
+  }
+
+  // ========== 재생 컨트롤 (음악) ==========
+  // 실제 음악 파일 경로를 여기에 채워 넣으세요 (mp3 등). 비워두면 재생 버튼만 토글됩니다.
+  const playlist = [
+    { name: "Track 1", src: "" },
+    { name: "Track 2", src: "" },
+    { name: "Track 3", src: "" }
+  ];
+  let trackIndex = 0;
+  const audioEl = document.getElementById("audioEl");
+  const playBtn = document.getElementById("playBtn");
+
+  function loadTrack(i) {
+    trackIndex = (i + playlist.length) % playlist.length;
+    const t = playlist[trackIndex];
+    document.getElementById("trackName").textContent = "🎵 " + t.name;
+    if (t.src) audioEl.src = t.src;
+    isPlaying = false;
+    playBtn.textContent = "P";
+  }
+
+  let isPlaying = false;
+
+  function togglePlay() {
+    isPlaying = !isPlaying;
+    playBtn.textContent = isPlaying ? "p" : "P";
+
+    sendSpeakerChar("P");
+
+    if (!audioEl.src) {
+      setStatus(isPlaying ? "재생 중 (오디오 파일 미설정)" : "정지됨");
+      return;
+    }
+    if (isPlaying) { audioEl.play(); } else { audioEl.pause(); }
+  }
+
+  function prevTrack() {
+    loadTrack(trackIndex - 1);
+    sendSpeakerChar("B");
+  }
+
+  function nextTrack() {
+    loadTrack(trackIndex + 1);
+    sendSpeakerChar("F");
+  }
+
+  async function sendSpeakerChar(char) {
+    const sentByBle = await sendBleCharTo("speaker", char);
+    if (sentByBle) {
+      setStatus(`ARETE5(스피커) BLE 전송: ${char}`);
+    } else {
+      setStatus("ARETE5 BLE 미연결 - 스피커와 먼저 페어링해주세요");
+    }
+  }
+
+  // ========== 키보드 단축키 (F: 다음곡, B: 이전곡, P: 재생/일시정지) ==========
+  window.addEventListener("keydown", (e) => {
+    // 입력창(IP 주소 등)에 타이핑 중일 때는 단축키 무시
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+    const key = e.key.toLowerCase();
+
+    if (key === "f") {
+      nextTrack();
+    } else if (key === "b") {
+      prevTrack();
+    } else if (key === "p") {
+      togglePlay();
+    }
+  });
+
+  // ========== 초기화 ==========
+  loadTrack(0);
+  renderTicks();
+  applyKnobAngle(volumeToAngle(currentVolume), false);
+</script>
+</body>
+</html>
